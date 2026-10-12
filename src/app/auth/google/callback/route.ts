@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   if (await adminPeriodExpired(user)) return fail("periode-berakhir");
 
   await db.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, user.id));
-  const session = await sessionCookie(user.id);
+  const session = await sessionCookie(user.id, user.sessionVersion);
   const res = NextResponse.redirect(new URL("/admin", req.nextUrl));
   res.cookies.set(session.name, session.value, session.options);
   res.cookies.delete({ name: OAUTH_COOKIE, path: "/auth/google" });

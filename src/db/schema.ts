@@ -91,6 +91,11 @@ export const users = sqliteTable("users", {
   permissions: text("permissions", { mode: "json" }).$type<string[]>(),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   /**
+   * Versi sesi: ikut disimpan di token login. Dinaikkan saat logout / ganti password →
+   * semua token lama akun ini (di perangkat mana pun) otomatis ditolak.
+   */
+  sessionVersion: integer("session_version").notNull().default(0),
+  /**
    * Periode akses untuk peran Admin: Admin hanya bisa masuk selama periode ini berstatus aktif.
    * Saat periode baru diaktifkan, akses Admin periode lama otomatis berakhir. Diabaikan untuk Super Admin.
    */
@@ -99,6 +104,19 @@ export const users = sqliteTable("users", {
   lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+});
+
+/**
+ * Penghitung percobaan gagal (login & verifikasi password lama). Disimpan di DB agar tetap berlaku
+ * setelah server restart. key mis. "login-pair:<email>|<ip>", "login-ip:<ip>", "login-email:<email>".
+ */
+export const authAttempts = sqliteTable("auth_attempts", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  /** awal jendela hitung (ms epoch) */
+  windowStart: integer("window_start").notNull(),
+  /** terkunci sampai (ms epoch); null = tidak terkunci */
+  lockedUntil: integer("locked_until"),
 });
 
 // --------------------------------------------------------------------- MEDIA

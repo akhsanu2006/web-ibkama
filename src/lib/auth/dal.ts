@@ -7,7 +7,7 @@ import { can, type Action, type Resource } from "@/lib/permissions";
 import { adminPeriodExpired } from "./access";
 import { readSession } from "./session";
 
-type SessionState = { user: SessionUser | null; reason?: "periode-berakhir" | "akses-dicabut" };
+type SessionState = { user: SessionUser | null; reason?: "periode-berakhir" | "akses-dicabut" | "sesi-berakhir" };
 
 /** Status sesi: pengguna aktif, atau alasan ditolak. Selalu dicek ulang ke DB (peran/periode bisa berubah). */
 const loadSession = cache(async (): Promise<SessionState> => {
@@ -23,18 +23,25 @@ const loadSession = cache(async (): Promise<SessionState> => {
       permissions: schema.users.permissions,
       isActive: schema.users.isActive,
       periodId: schema.users.periodId,
+      sessionVersion: schema.users.sessionVersion,
     })
     .from(schema.users)
     .where(eq(schema.users.id, session.userId));
   if (!user || !user.isActive) return { user: null, reason: "akses-dicabut" };
+  // Token dibatalkan (logout / ganti password menaikkan versi). Token lama tanpa `v` = versi 0:
+  // hanya berlaku selama akun belum pernah menaikkan versinya, jadi tidak membuka celah baru.
+  if ((session.v ?? 0) !== user.sessionVersion) return { user: null, reason: "sesi-berakhir" };
   if (await adminPeriodExpired(user)) return { user: null, reason: "periode-berakhir" };
   return { user };
 });
 
 type SessionUser = {
   id: string; name: string; email: string; role: "admin" | "super_admin"; adminPosition: string | null;
-  permissions: string[] | null; isActive: boolean; periodId: string | null;
+  permissions: string[] | null; isActive: boolean; periodId: string | null; sessionVersion: number;
 };
+
+/** Status sesi lengkap (dipakai /auth/keluar untuk membedakan sesi sah vs usang). */
+export const getSessionState = loadSession;
 
 /** Pengguna aktif dari sesi, atau null. */
 export const getCurrentUser = cache(async () => (await loadSession()).user);

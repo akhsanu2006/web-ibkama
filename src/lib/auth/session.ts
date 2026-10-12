@@ -5,7 +5,11 @@ import { jwtVerify, SignJWT } from "jose";
 const COOKIE = "ibkama_session";
 const DURATION_MS = 1000 * 60 * 60 * 8; // 8 jam
 
-export type SessionPayload = { userId: string; expiresAt: number };
+/**
+ * `v` = users.sessionVersion saat token dibuat. Token dari sebelum fitur ini (tanpa `v`) dianggap versi 0;
+ * begitu versi akun naik (logout / ganti password), token itu ikut ditolak — lihat dal.ts.
+ */
+export type SessionPayload = { userId: string; expiresAt: number; v?: number };
 
 function key() {
   const secret = process.env.SESSION_SECRET;
@@ -33,11 +37,11 @@ export async function decrypt(token: string | undefined) {
 }
 
 /** Cookie sesi siap pasang — dipakai Server Action (via cookies()) maupun Route Handler (via response.cookies). */
-export async function sessionCookie(userId: string) {
+export async function sessionCookie(userId: string, version: number) {
   const expiresAt = Date.now() + DURATION_MS;
   return {
     name: COOKIE,
-    value: await encrypt({ userId, expiresAt }),
+    value: await encrypt({ userId, expiresAt, v: version }),
     options: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -48,8 +52,8 @@ export async function sessionCookie(userId: string) {
   };
 }
 
-export async function createSession(userId: string) {
-  const c = await sessionCookie(userId);
+export async function createSession(userId: string, version: number) {
+  const c = await sessionCookie(userId, version);
   (await cookies()).set(c.name, c.value, c.options);
 }
 

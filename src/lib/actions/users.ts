@@ -8,6 +8,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { getActivePeriodId } from "@/lib/auth/access";
 import { assertPermission } from "@/lib/auth/dal";
+import { createSession } from "@/lib/auth/session";
 import { ADMIN_POSITIONS } from "@/lib/permissions";
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string> } | undefined;
@@ -99,8 +100,14 @@ export async function updateUser(id: string, _prev: FormState, form: FormData): 
     await db.update(schema.users).set({
       ...parsed.data,
       ...periodPatch,
-      ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12) } : {}),
+      // password diganti → semua sesi akun itu dibatalkan (versi sesi naik)
+      ...(newPassword ? { passwordHash: await bcrypt.hash(newPassword, 12), sessionVersion: sql`${schema.users.sessionVersion} + 1` } : {}),
     }).where(eq(schema.users.id, id));
+    // Super Admin mengganti password akunnya sendiri dari halaman ini → perangkat ini tetap masuk dengan token baru
+    if (newPassword && actor.id === id) {
+      const [me] = await db.select({ v: schema.users.sessionVersion }).from(schema.users).where(eq(schema.users.id, id));
+      await createSession(id, me.v);
+    }
   } catch (e) {
     return { error: friendly(e) };
   }

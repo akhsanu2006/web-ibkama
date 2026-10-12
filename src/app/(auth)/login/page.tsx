@@ -13,6 +13,7 @@ const ERRORS: Record<string, string> = {
   "google-gagal": "Masuk dengan Google gagal. Silakan coba lagi.",
   "google-belum-dikonfigurasi": "Masuk dengan Google belum diaktifkan. Gunakan email dan password.",
   "periode-berakhir": "Masa akses Admin Anda sudah berakhir karena periode kepengurusannya tidak lagi aktif. Hubungi Super Admin untuk diperpanjang.",
+  "sesi-berakhir": "Sesi Anda telah berakhir (logout atau password diganti). Silakan masuk kembali.",
   "akses-dicabut": "Akses akun Anda telah dicabut atau dinonaktifkan. Hubungi Super Admin bila ini keliru.",
 };
 
