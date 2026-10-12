@@ -1,26 +1,115 @@
 @import "tailwindcss";
 
+/* ============================================================
+   IBKAMA UMY — design tokens
+   Primer: putih · Sekunder: hijau · Pendukung: coklat
+   Aksen emas: sangat terbatas (dari logo resmi)
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --white: #ffffff;
+  --paper: #fbfcfa;
+  /* HIJAU IBKAMA — satu warna resmi untuk seluruh situs: #17331f.
+     Semua tingkat hijau solid (950…500) memakai warna yang SAMA. Tingkat muda (300…50) hanya untuk
+     latar/garis lembut dan merupakan campuran #17331f + putih (bukan hijau lain), agar tetap seragam. */
+  --green: #17331f;
+  --green-950: var(--green);
+  --green-900: var(--green);
+  --green-800: var(--green);
+  --green-700: var(--green);
+  --green-600: var(--green);
+  --green-500: var(--green);
+  --green-400: var(--green);
+  --green-300: #aeb8b1; /* 35% */
+  --green-200: #d1d6d2; /* 20% */
+  --green-100: #e8ebe9; /* 10% */
+  --green-50: #f3f5f4;  /*  5% */
+  --brown-800: #4a3526;
+  --brown-600: #7a5a3e;
+  --brown-300: #cdb8a0;
+  --brown-100: #f3ece3;
+  --gold: #e2a815;
+  --ink: #17201a;
+  --muted: #5d695f;
+  --line: #e4e9e5;
+  --danger: #b3382c;
+  --danger-bg: #fbeceb;
+  --ok: var(--green);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --color-paper: var(--paper);
+  /* semua shade green-* Tailwind dipetakan ke hijau IBKAMA (tidak ada hijau bawaan Tailwind yang lolos) */
+  --color-green-950: var(--green-950);
+  --color-green-900: var(--green-900);
+  --color-green-800: var(--green-800);
+  --color-green-700: var(--green-700);
+  --color-green-600: var(--green-600);
+  --color-green-500: var(--green-500);
+  --color-green-400: var(--green-400);
+  --color-green-300: var(--green-300);
+  --color-green-200: var(--green-200);
+  --color-green-100: var(--green-100);
+  --color-green-50: var(--green-50);
+  --color-brown-800: var(--brown-800);
+  --color-brown-600: var(--brown-600);
+  --color-brown-300: var(--brown-300);
+  --color-brown-100: var(--brown-100);
+  --color-gold: var(--gold);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --shadow-soft: 0 1px 2px rgb(23 51 31 / 0.05), 0 8px 24px -12px rgb(23 51 31 / 0.16);
+  --shadow-lift: 0 2px 4px rgb(23 51 31 / 0.06), 0 18px 40px -18px rgb(23 51 31 / 0.28);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html { scroll-behavior: smooth; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--white);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 700; letter-spacing: -0.02em; color: var(--green-900); }
+
+:focus-visible { outline: 2px solid var(--green-700); outline-offset: 3px; border-radius: 6px; }
+
+/* Kotak pilihan (select): panah bawaan browser menempel ke tepi kanan. Ganti dengan chevron
+   yang diberi jarak 1rem dari tepi + ruang teks agar label panjang tak menabrak panah.
+   Sengaja di luar @layer agar menang atas utilitas padding (mis. px-4) di semua form. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235d695f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1rem;
+  padding-right: 2.75rem;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+select:disabled { cursor: not-allowed; opacity: .6; }
+::selection { background: var(--green-200); color: var(--green-950); }
+
+/* Tinggi "satu layar" untuk bagian layar penuh (sinematik, logo koin, foto profil).
+   PC: tinggi layar. HP (tampilan desktop diperkecil): dikunci 16:9 dari lebar 1280px, agar komposisi
+   sama persis dengan PC — layar HP yang tegak tidak membuat gambar/video terpotong. */
+:root { --layar: 100dvh; --layar-s: 100svh; }
+[data-perangkat="hp"] { --layar: 720px; --layar-s: 720px; --pin: 1; }
+
+/* Reveal halus saat masuk viewport */
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .reveal { opacity: 1; transform: none; }
+}
+
+@keyframes skeleton { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
+.skeleton { background: linear-gradient(90deg, var(--green-50) 25%, var(--green-100) 37%, var(--green-50) 63%); background-size: 200% 100%; animation: skeleton 1.4s ease infinite; border-radius: 10px; }
