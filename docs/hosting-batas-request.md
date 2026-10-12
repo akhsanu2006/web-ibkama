@@ -1,7 +1,8 @@
 # Batas ukuran request presensi publik (reverse proxy 5 MB)
 
-> **Status: BELUM AKTIF.** Pengaturan ini harus diterapkan di server hosting. Di lingkungan lokal
-> (`npm run dev` / `npm run start`) tidak ada reverse proxy, sehingga perlindungan ini belum berlaku.
+> **Status: BELUM AKTIF.** Konfigurasi proxy di bawah harus diterapkan di server hosting dan diverifikasi
+> (lihat "Cara menguji"). Aplikasi sudah memiliki lapisan kedua (413 berdasarkan Content-Length), tetapi
+> body *chunked* hanya bisa dibatasi di proxy.
 
 ## Mengapa diperlukan
 
@@ -18,18 +19,27 @@ pasang batas **5 MB khusus untuk `/hadir/`**, tanpa mengubah batas dashboard.
 
 ```nginx
 server {
-    # ... konfigurasi domain & TLS ...
+    # ... konfigurasi domain & TLS (HTTPS wajib) ...
 
-    # Presensi publik: tolak body > 5 MB sebelum sampai ke Next.js (respons 413).
+    # Login: hanya email + password. Tolak body > 64 KB sebelum sampai ke Next.js (413).
+    location = /login {
+        client_max_body_size 64k;
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;                       # WAJIB: Server Action memeriksa Origin terhadap Host
+        proxy_set_header X-Forwarded-For $remote_addr;     # TIMPA (jangan teruskan nilai dari klien)
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Presensi publik: foto + tanda tangan ≈ 4 MB sebagai data URL → batas 5 MB.
     location /hadir/ {
         client_max_body_size 5m;
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;   # TIMPA (jangan teruskan nilai dari klien)
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Selebihnya (dashboard butuh unggahan video ≤ 50 MB).
+    # Selebihnya: dashboard butuh unggahan video ≤ 50 MB.
     location / {
         client_max_body_size 60m;
         proxy_pass http://127.0.0.1:3000;
@@ -40,11 +50,24 @@ server {
 }
 ```
 
-Catatan `X-Forwarded-For`: pembatas login & presensi membaca IP dari header ini
-(`src/lib/auth/rate-limit.ts`). Proxy **wajib menimpanya** dengan `$remote_addr`; bila nilai dari klien
-diteruskan apa adanya, pembatas per IP dapat diakali.
+Catatan penting:
+- **Biarkan `proxy_request_buffering on` (bawaan nginx).** nginx menampung body lalu mengirim ke aplikasi dengan
+  `Content-Length`, sehingga lapisan kedua di aplikasi (`src/proxy.ts`, 413 untuk /hadir > 5 MB dan /login > 64 KB)
+  juga efektif. Tanpa buffering, klien dapat memakai body *chunked* yang hanya dibatasi 60 MB oleh Next.
+- `X-Forwarded-For`: pembatas login & presensi membaca IP dari header ini (`src/lib/auth/rate-limit.ts`). Proxy
+  **wajib menimpanya** dengan `$remote_addr`; bila nilai dari klien diteruskan, pembatas per IP dapat diakali
+  (pembatas per email/program/NIM tetap berlaku).
+- `Host $host` wajib: bila proxy mengganti Host (mis. ke `127.0.0.1:3000`), seluruh formulir ditolak Next.js
+  ("Invalid Server Actions request") karena Origin ≠ Host.
+- Setelah mengubah: `sudo nginx -t && sudo systemctl reload nginx`.
 
-Setelah mengubah: `sudo nginx -t && sudo systemctl reload nginx`.
+### Yang dilindungi aplikasi sendiri (aktif tanpa proxy)
+| Perlindungan | Status |
+|---|---|
+| 413 untuk `/hadir/*` > 5 MB dan `/login` > 64 KB **bila Content-Length dinyatakan** | aktif di aplikasi (`src/proxy.ts`) |
+| Tiap bukti presensi ≤ 1,5 MB; data URL besar ditolak sebelum dekode | aktif di aplikasi |
+| Body *chunked* tanpa Content-Length | **hanya** dibatasi `bodySizeLimit` 60 MB — perlu proxy |
+| Batas per-perangkat/IP/program untuk kiriman presensi | aktif di aplikasi (tergantung IP asli dari proxy) |
 
 ## Hostinger
 
@@ -58,6 +81,7 @@ Setelah mengubah: `sudo nginx -t && sudo systemctl reload nginx`.
 
 ```bash
 # 6 MB acak ke halaman presensi → harus 413 dari proxy (bukan dari Next.js)
+# (juga uji /login: head -c 100000 /dev/urandom ... https://DOMAIN/login → 413)
 head -c 6291456 /dev/urandom > /tmp/besar.bin
 curl -s -o /dev/null -w "%{http_code}\n" -X POST --data-binary @/tmp/besar.bin https://DOMAIN/hadir/uji
 

@@ -43,3 +43,6 @@ next-env.d.ts
 # app storage (db + upload)
 /storage/
 !.env.example
+
+# artefak suite regresi keamanan
+/.audit-work/

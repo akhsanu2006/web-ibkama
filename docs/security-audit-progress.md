@@ -1,41 +1,45 @@
 # Progres audit keamanan IBKAMA UMY
 
-> Dokumen kerja. Tidak berisi secret, token, atau data pribadi.
+> Dokumen kerja audit. Tidak berisi secret, token, atau data pribadi. Ringkasan operasional: `docs/pra-deployment.md`.
 
-## Baseline
-`edd4ca1` (A) → `f8a61d0` (B) → `10b925a` (C) → `6f3d036` (D). Tanpa remote. Working tree bersih saat audit dimulai.
-
-## Fase 1 — Inventarisasi (SELESAI, berdasarkan pembacaan kode)
-Diperiksa: seluruh Server Action (`src/lib/actions/*`), rute (`media`, `export`, `auth/*`), `dal.ts`, `access.ts`,
-`session.ts`, `rate-limit.ts`, `proxy.ts`, `next.config.ts`, `permissions.ts`, `media.ts`, query publik/admin,
-`google.ts`, seed, `.env.example`, `docs/hosting-batas-request.md`.
-
-Terkonfirmasi dari kode (belum diuji dinamis, ditandai KODE):
-- KODE: semua aksi non-publik memanggil `assertPermission`; halaman admin memakai `requirePagePermission`/`requireUser`.
-- KODE: tidak ada `dangerouslySetInnerHTML`/`eval`; SQL mentah hanya `sql` ber-parameter (rate-limit, presensi).
-- KODE: `deleteResource` tidak menghapus berkas media pemiliknya; hapus program ikut menghapus baris presensi
-  (cascade FK) tetapi bukti foto/TTD privat tetap tertinggal di disk dan tabel `media`.
-- KODE: `saveResource` tidak menghapus media lama saat berkas diganti/dihapus.
-- KODE: `friendly()` pada resource/users mengembalikan pesan galat mentah (bisa memuat SQL) ke pengguna admin.
-- KODE: `siteOrigin()` memercayai header Host/X-Forwarded-Host bila `NEXT_PUBLIC_SITE_URL` kosong.
-- KODE: `bodySizeLimit` Server Action 60 MB berlaku juga untuk /login dan /hadir.
-- KODE: unggahan hanya memeriksa `file.type` kiriman klien (tanpa pemeriksaan magic bytes).
-- KODE: password baru tanpa batas panjang (bcrypt memotong 72 byte) pada createUser/updateUser.
-- Dependensi produksi: `npm audit --omit=dev` = 0 kerentanan. Dev: 9 (braces/esbuild, hanya tooling).
-
-## Fase 2 — Pengujian terkontrol (BERJALAN)
-Lihat bagian hasil di bawah (diisi per batch).
-
-## Hasil Fase 2 (build produksi, DB & unggahan SALINAN)
-| Grup | Hasil |
-|---|---|
-| Media (anonim/berizin/periode berakhir, Range, HEAD, traversal) | 16/16 lulus |
-| Otorisasi halaman & Server Action (admin vs Super Admin vs anonim) + kontrol positif | 21/21 lulus |
-| Origin: valid / tanpa / lintas-situs / "null" / malformed | Lintas-situs & "null" → 500 tidak diproses; tanpa Origin → DIPROSES (perilaku framework); malformed tak melumpuhkan server |
-| Sesi/login/lockout/token (palsu, alg=none, kedaluwarsa, kunci salah) | 19/19 lulus (1 salah-harness diperbaiki) |
-| Konten/unggahan/XSS | sebelum perbaikan 3 GAGAL (berkas yatim); setelah E1: 16/16 lulus |
-| Batas body | sebelum: 30 MB diproses, RSS 131→490 MB; setelah E2: >5 MB (/hadir), >64 KB (/login) → 413; chunked tetap 60 MB |
+## Status
+Fase 1–7 selesai untuk semua yang dapat dikerjakan lokal. Keputusan: **SIAP SETELAH PRASYARAT** (hosting + kredensial).
+Baseline: `edd4ca1` (A) · `f8a61d0` (B) · `10b925a` (C) · `6f3d036` (D) — utuh, tidak diubah.
 
 ## Commit audit
-- `1ebec8d` E1 — pembersihan media, validasi isi unggahan, galat aman
-- E2 — batas Content-Length di proxy (lihat git log)
+| Commit | Isi |
+|---|---|
+| E1 `1ebec8d` | pembersihan media (hapus/ganti), validasi isi unggahan, galat tak bocor |
+| E2 `136a389` | batas Content-Length body untuk /hadir (5 MB) dan /login (64 KB) di proxy.ts |
+| E3 `ca2ae00` | CSP enforcement, batas password 72 byte, zod jitless klien |
+| E4 `4e41b10` | galat DB tanpa SQL (rantai cause), error boundary dashboard |
+| E5 | suite regresi permanen + dokumen operasional |
+
+## Temuan
+| ID | Temuan | Prio | Bukti | Perbaikan | Hasil uji | Status | Tindak lanjut |
+|---|---|---|---|---|---|---|---|
+| F-01 | Aksi terikat di klien + useActionState → render ulang tanpa-JS berputar (CPU 100%, OOM) | P0 | Paket D | Paket D | suite `origin`, `body` (server responsif) | diperbaiki & terverifikasi | – |
+| F-02 | Server Action tanpa `Origin` diproses | P3 | `origin` | tidak diubah (perilaku framework; SameSite=Lax; lintas-situs/null ditolak) | 12/12 | diterima sebagai risiko | – |
+| F-03 | Body Server Action 60 MB berlaku untuk /login & /hadir (RSS 131→490 MB dari satu login 30 MB; 6×40 MB chunked → 834 MB) | P1 | `body` | E2 (413 via Content-Length) | 7/7; login 30 MB 941→30 ms | mitigasi lokal selesai, butuh aktivasi hosting | proxy (B2, B3) |
+| F-04 | Hapus Program meninggalkan bukti presensi privat (foto/TTD) di disk & tabel media | P1 (privasi) | `content` (3 GAGAL sebelum) | E1 | 16/16 | diperbaiki & terverifikasi | – |
+| F-05 | Media lama tertinggal saat berkas diganti/dihapus/penyimpanan gagal | P2 | `content` | E1 | 16/16 | diperbaiki & terverifikasi | – |
+| F-06 | Unggahan hanya memeriksa MIME dari klien | P2 | `content` | E1 (signature isi) | HTML berlabel PNG ditolak | diperbaiki & terverifikasi | – |
+| F-07 | `friendly()` meneruskan SQL + parameter (termasuk hash password) pada email ganda/FK | P2 | `misc` (GAGAL sebelum) | E1, E4 | 8/8 | diperbaiki & terverifikasi | – |
+| F-08 | CSP masih Report-Only | P2 | next.config.ts | E3 | Chrome: 8 halaman publik + 10 admin + presensi + PDF tanpa pelanggaran | diperbaiki & terverifikasi | HSTS (B7) |
+| F-09 | Password baru tanpa batas (bcrypt memotong 72 byte); login tanpa batas panjang | P3 | kode | E3 | `misc` | diperbaiki & terverifikasi | – |
+| F-10 | `.env.local` berizin 644 | P3 | `ls -l` | chmod 600 | `ls -l` | diperbaiki (lokal) | atur izin di server |
+| F-11 | Password Super Admin di `.env.local` | P2 | kode/env | dokumentasi | – | belum terselesaikan (tindakan manual) | D1 |
+| F-12 | Tidak ada 2FA | P2 | kode | desain di pra-deployment.md | – | belum terselesaikan | D2 |
+| F-13 | Google OAuth belum diuji dengan kredensial nyata | P2 | kode + uji jalur gagal | – | state/nonce/PKCE/cookie/flag OK; callback gagal → pesan benar | membutuhkan kredensial/pengujian eksternal | C1 |
+| F-14 | `siteOrigin()` memercayai Host bila `NEXT_PUBLIC_SITE_URL` kosong | P3 | kode | `.env.example` diperjelas | runtime env terbukti dibaca | mitigasi lokal selesai, butuh aktivasi hosting | B4 |
+| F-15 | IP dari `X-Forwarded-For` bisa dipalsukan tanpa proxy yang menimpanya | P2 | kode | dokumentasi | – | membutuhkan konfigurasi hosting | B3 |
+| F-16 | Advisory dependensi dev (braces/esbuild) | P3 | `npm audit` | – | prod: 0 | diterima sebagai risiko | – |
+| F-17 | Backup hanya di disk yang sama | P2 | `storage/db` | prosedur + latihan restore | restore identik | membutuhkan konfigurasi hosting | D4 |
+| F-18 | Tidak ada error boundary dashboard | P3 | kode | E4 | uji browser | diperbaiki & terverifikasi | – |
+| F-19 | Tidak ada tes regresi otomatis | P2 | – | suite permanen (111 uji) | semua lulus | diperbaiki & terverifikasi | jalankan sebelum rilis |
+| F-20 | Video hero `02-hero-laptop.mp4` tidak ada → 404 (fungsional, bukan keamanan) | P3 | audit lama | – | – | belum terselesaikan | unggah via Foto & Video Situs |
+| F-21 | Admin dapat mengubah/menghapus data periode lain lewat ID (kebijakan bisnis, tidak diuji) | P3 | kode | – | – | diterima sebagai risiko (perlu keputusan kebijakan) | – |
+
+## Perubahan database
+Tidak ada migrasi baru pada DB aktif dalam misi ini. DB aktif hanya dibaca (`sqlite3 .backup`).
+Backup & latihan restore dilakukan pada salinan; hasil identik.
