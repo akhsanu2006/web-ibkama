@@ -3,9 +3,10 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 /**
- * CSP masih Report-Only: browser hanya MENCATAT pelanggaran di console, tidak memblokir apa pun.
- * Setelah tidak ada pelanggaran di semua halaman, ganti kuncinya menjadi "Content-Security-Policy".
- * Catatan: frame-ancestors diabaikan browser dalam mode Report-Only — anti-iframe ditangani X-Frame-Options.
+ * CSP dalam mode ENFORCEMENT (diuji di Chrome sungguhan: halaman publik, login, dashboard, presensi, PDF.js).
+ * Sebelum menambah sumber daya eksternal (gambar/skrip/iframe/font dari domain lain) tambahkan dulu ke kebijakan
+ * ini, atau halaman akan memblokirnya. Untuk mencoba kebijakan baru tanpa memblokir, gunakan sementara kunci
+ * "Content-Security-Policy-Report-Only" lalu kembalikan.
  */
 const csp = [
   "default-src 'self'",
