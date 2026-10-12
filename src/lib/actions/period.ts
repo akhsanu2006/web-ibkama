@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertPermission } from "@/lib/auth/dal";
+import { isUniqueViolation, logDbError } from "@/lib/db-errors";
 import { defaultDivisions } from "@/db/seed-data";
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string> } | undefined;
@@ -24,9 +25,9 @@ const schemaPeriod = z
   .refine((v) => v.endYear === v.startYear + 1, { message: "Tahun kedua harus tahun setelah tahun pertama (mis. 2027/2028).", path: ["name"] });
 
 function friendly(e: unknown) {
-  const m = e instanceof Error ? e.message : String(e);
-  if (/UNIQUE/i.test(m)) return "Periode dengan nama ini sudah ada.";
-  return m || "Terjadi kesalahan tak terduga.";
+  if (isUniqueViolation(e)) return "Periode dengan nama ini sudah ada.";
+  logDbError("period", e);
+  return "Terjadi kesalahan tak terduga. Silakan coba lagi.";
 }
 
 export async function createPeriod(_prev: FormState, form: FormData): Promise<FormState> {

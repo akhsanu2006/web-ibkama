@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db, schema } from "@/db";
 import { assertPermission } from "@/lib/auth/dal";
+import { isForeignKeyViolation, isUniqueViolation, logDbError } from "@/lib/db-errors";
 import { deleteMedia, saveUpload, UploadError } from "@/lib/media";
 import { bySlug } from "@/lib/resources/registry";
 import type { Field } from "@/lib/resources/types";
@@ -18,15 +19,10 @@ const TABLES = schema as unknown as Record<string, any>;
 
 /** Pesan untuk pengguna: hanya galat validasi unggahan yang diteruskan apa adanya; galat DB/internal tidak bocor. */
 function friendly(e: unknown) {
-  const m = e instanceof Error ? e.message : String(e);
-  if (e instanceof UploadError) return m;
-  // drizzle membungkus galat SQLite ("Failed query: …") — pesan asli ada di rantai `cause`
-  const chain: string[] = [];
-  for (let c: unknown = e, i = 0; c && i < 5; c = (c as { cause?: unknown }).cause, i++) chain.push(c instanceof Error ? c.message : String(c));
-  const all = chain.join(" | ");
-  if (/UNIQUE constraint/i.test(all)) return "Data dengan nilai yang sama sudah ada (mis. nama/periode ganda).";
-  if (/FOREIGN KEY constraint/i.test(all)) return "Data ini masih dipakai oleh data lain, sehingga tidak dapat diubah/dihapus.";
-  console.error("[resource] galat tak terduga:", m.slice(0, 300));
+  if (e instanceof UploadError) return e.message;
+  if (isUniqueViolation(e)) return "Data dengan nilai yang sama sudah ada (mis. nama/periode ganda).";
+  if (isForeignKeyViolation(e)) return "Data ini masih dipakai oleh data lain, sehingga tidak dapat diubah/dihapus.";
+  logDbError("resource", e);
   return "Terjadi kesalahan tak terduga. Silakan coba lagi.";
 }
 
@@ -115,7 +111,7 @@ export async function saveResource(slug: string, id: string | null, _prev: FormS
     if (id) await db.update(table).set(values).where(eq(table.id, id));
     else await db.insert(table).values(values);
   } catch (e) {
-    if (def.table === "leadershipHistory" && /UNIQUE/i.test(String(e))) return reject({ error: "Periode ini sudah memiliki Ketua Umum. Ubah data yang ada." });
+    if (def.table === "leadershipHistory" && isUniqueViolation(e)) return reject({ error: "Periode ini sudah memiliki Ketua Umum. Ubah data yang ada." });
     return reject({ error: friendly(e) });
   }
   // berkas lama yang digantikan/dihapus ikut dibersihkan (hanya setelah penyimpanan berhasil)

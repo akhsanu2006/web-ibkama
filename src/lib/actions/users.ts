@@ -10,6 +10,7 @@ import { getActivePeriodId } from "@/lib/auth/access";
 import { assertPermission } from "@/lib/auth/dal";
 import { PASSWORD_TOO_LONG, passwordTooLong } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
+import { isUniqueViolation, logDbError } from "@/lib/db-errors";
 import { ADMIN_POSITIONS } from "@/lib/permissions";
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string> } | undefined;
@@ -32,9 +33,9 @@ async function otherActiveSuperAdmins(excludeId: string) {
 const NO_ACTIVE_PERIOD = "Belum ada periode berstatus aktif. Aktifkan periode di menu Kelola Periode terlebih dahulu — akses Admin selalu terikat pada periode aktif.";
 
 function friendly(e: unknown) {
-  const m = e instanceof Error ? e.message : String(e);
-  if (/UNIQUE/i.test(m)) return "Email ini sudah terdaftar.";
-  return m || "Terjadi kesalahan tak terduga.";
+  if (isUniqueViolation(e)) return "Email ini sudah terdaftar.";
+  logDbError("users", e);
+  return "Terjadi kesalahan tak terduga. Silakan coba lagi.";
 }
 
 export async function createUser(_prev: FormState, form: FormData): Promise<FormState> {
@@ -65,7 +66,7 @@ export async function createUser(_prev: FormState, form: FormData): Promise<Form
   try {
     await db.insert(schema.users).values({ ...rest, periodId, passwordHash: await bcrypt.hash(secret, 12) });
   } catch (e) {
-    return { error: friendly(e), fieldErrors: /UNIQUE/i.test(String(e)) ? { email: "Email ini sudah terdaftar." } : undefined };
+    return { error: friendly(e), fieldErrors: isUniqueViolation(e) ? { email: "Email ini sudah terdaftar." } : undefined };
   }
   revalidatePath("/admin/pengguna");
   redirect("/admin/pengguna?ok=ditambahkan");
