@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { DeleteButton } from "@/components/admin/delete-button";
 import { ResourceForm } from "@/components/admin/resource-form";
-import { deleteResource } from "@/lib/actions/resource";
+import { deleteResource, saveResource } from "@/lib/actions/resource";
 import { requirePagePermission } from "@/lib/auth/dal";
 import { can } from "@/lib/permissions";
 import { getLookups, getRecord } from "@/lib/queries/admin";
@@ -30,7 +30,7 @@ export default async function ResourceEditPage({ params }: Props) {
     <div>
       <AdminPageHeader title={`Ubah ${def.singular}`} description={def.description}
         actions={canDelete ? <DeleteButton action={deleteResource.bind(null, resource, id)} itemName={String(row[nameCol] ?? "data ini")} /> : undefined} />
-      <ResourceForm slug={resource} id={id} fields={def.fields} values={row} lookups={await getLookups()} cancelHref={`/admin/${resource}`} submitLabel="Simpan Perubahan" />
+      <ResourceForm action={saveResource.bind(null, resource, id)} fields={def.fields} values={row} lookups={await getLookups()} cancelHref={`/admin/${resource}`} submitLabel="Simpan Perubahan" />
     </div>
   );
 }

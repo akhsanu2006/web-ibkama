@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdminPageHeader } from "@/components/admin/page-header";
 import { ResourceForm } from "@/components/admin/resource-form";
+import { saveResource } from "@/lib/actions/resource";
 import { requirePagePermission } from "@/lib/auth/dal";
 import { adminPeriod, getLookups } from "@/lib/queries/admin";
 import { bySlug } from "@/lib/resources/registry";
@@ -27,7 +28,7 @@ export default async function ResourceNewPage({ params, searchParams }: Props) {
   return (
     <div>
       <AdminPageHeader title={def.addLabel} description={def.description} />
-      <ResourceForm slug={resource} id={null} fields={def.fields} values={defaults} lookups={lookups} cancelHref={`/admin/${resource}`} submitLabel="Simpan" />
+      <ResourceForm action={saveResource.bind(null, resource, null)} fields={def.fields} values={defaults} lookups={lookups} cancelHref={`/admin/${resource}`} submitLabel="Simpan" />
     </div>
   );
 }

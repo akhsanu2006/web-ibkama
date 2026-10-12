@@ -110,8 +110,17 @@ export async function deleteAttendanceRow(programId: string, id: string): Promis
 const isOpenNow = (p: { attendanceOpen: boolean; attendanceClosesAt: number | null }) =>
   p.attendanceOpen && (p.attendanceClosesAt === null || p.attendanceClosesAt > Date.now());
 
-/** Aksi PUBLIK — dipanggil dari halaman /hadir/[kode], tanpa login. */
-export async function checkIn(code: string, _prev: FormState, form: FormData): Promise<FormState> {
+/** Format kode QR (kode lama 8 karakter, kode baru 22 karakter base64url). Bukan rahasia — tetap dicocokkan ke DB. */
+const CODE_RE = /^[A-Za-z0-9_-]{6,64}$/;
+
+/**
+ * Aksi PUBLIK — dipanggil dari halaman /hadir/[kode], tanpa login. Kode QR dikirim lewat input tersembunyi `code`
+ * (BUKAN `checkIn.bind(null, code)` di komponen klien: aksi terikat di klien + useActionState membuat render ulang
+ * tanpa-JS berputar tanpa henti — CPU 100%/kehabisan memori. Lihat Paket D).
+ */
+export async function checkIn(_prev: FormState, form: FormData): Promise<FormState> {
+  const code = String(form.get("code") ?? "");
+  if (!CODE_RE.test(code)) return { error: DITUTUP };
   const parsed = checkInSchema.safeParse({
     name: String(form.get("name") ?? ""), identifier: String(form.get("identifier") ?? ""),
     studyProgram: String(form.get("studyProgram") ?? ""), cohort: String(form.get("cohort") ?? ""),

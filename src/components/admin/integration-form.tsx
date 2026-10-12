@@ -2,11 +2,13 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, inputCls } from "@/components/ui/form";
-import { updateIntegration, type FormState } from "@/lib/actions/integrations";
+import type { FormState } from "@/lib/actions/integrations";
 import type { Integration } from "@/db/schema";
 
-export function IntegrationForm({ integration }: { integration: Integration }) {
-  const action: (prev: FormState, form: FormData) => Promise<FormState> = updateIntegration.bind(null, integration.key);
+/** `action` diikat di Server Component (lihat integrasi/page.tsx) — bind di komponen klien + useActionState membuat render ulang tanpa-JS berputar tanpa henti. */
+export function IntegrationForm({ integration, action }: {
+  integration: Integration; action: (prev: FormState, form: FormData) => Promise<FormState>;
+}) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const err = state?.fieldErrors ?? {};
 

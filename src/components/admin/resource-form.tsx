@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { saveResource } from "@/lib/actions/resource";
+import type { FormState } from "@/lib/actions/resource";
 import { Button } from "@/components/ui/button";
 import { Field, inputCls } from "@/components/ui/form";
 import { PhotoFileInput } from "@/components/admin/photo-file-input";
@@ -11,12 +11,15 @@ const fileCls = "block w-full text-sm file:mr-4 file:rounded-full file:border-0 
 
 type Option = { value: string; label: string; periodId?: string; short?: string };
 type Props = {
-  slug: string; id: string | null; fields: F[]; values: Record<string, unknown>;
+  /** diikat di Server Component: `saveResource.bind(null, slug, id)` — bind di komponen klien + useActionState
+   *  membuat render ulang tanpa-JS berputar tanpa henti (CPU tinggi, memori terus naik). */
+  action: (prev: FormState, form: FormData) => Promise<FormState>;
+  fields: F[]; values: Record<string, unknown>;
   lookups: Record<string, Option[]>; cancelHref: string; submitLabel: string;
 };
 
-export function ResourceForm({ slug, id, fields, values, lookups, cancelHref, submitLabel }: Props) {
-  const [state, action, pending] = useActionState(saveResource.bind(null, slug, id), undefined);
+export function ResourceForm({ action: save, fields, values, lookups, cancelHref, submitLabel }: Props) {
+  const [state, action, pending] = useActionState(save, undefined);
   const err = state?.fieldErrors ?? {};
   // Periode terpilih di form: divisi/anggota/program lain ikut disaring ke periode ini saja.
   const [period, setPeriod] = useState(String(values.periodId ?? ""));
