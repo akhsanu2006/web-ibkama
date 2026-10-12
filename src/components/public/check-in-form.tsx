@@ -6,6 +6,7 @@ import { Field, inputCls } from "@/components/ui/form";
 import { PhotoCapture } from "@/components/public/photo-capture";
 import { SignaturePad } from "@/components/public/signature-pad";
 import { checkIn, type FormState } from "@/lib/actions/attendance";
+import "@/lib/zod-jitless"; // harus sebelum attendance-rules (lihat catatan di modulnya)
 import { LIMITS, checkInSchema } from "@/lib/attendance-rules";
 
 /**

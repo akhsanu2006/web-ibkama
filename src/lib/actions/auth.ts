@@ -12,7 +12,7 @@ import { createSession, deleteSession } from "@/lib/auth/session";
 
 export type LoginState = { error?: string } | undefined;
 
-const schemaLogin = z.object({ email: z.string().trim().toLowerCase().email("Email tidak valid."), password: z.string().min(1, "Password wajib diisi.") });
+const schemaLogin = z.object({ email: z.string().trim().toLowerCase().email("Email tidak valid."), password: z.string().min(1, "Password wajib diisi.").max(1000, "Password terlalu panjang.") });
 
 // Hash tiruan agar waktu respons tidak membocorkan apakah email terdaftar.
 const DUMMY = bcrypt.hashSync("tidak-dipakai", 12);

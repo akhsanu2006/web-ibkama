@@ -8,6 +8,7 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { getActivePeriodId } from "@/lib/auth/access";
 import { assertPermission } from "@/lib/auth/dal";
+import { PASSWORD_TOO_LONG, passwordTooLong } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { ADMIN_POSITIONS } from "@/lib/permissions";
 
@@ -42,7 +43,9 @@ export async function createUser(_prev: FormState, form: FormData): Promise<Form
     .extend({
       email: z.string().trim().toLowerCase().email("Email tidak valid."),
       // Kosong = akun hanya bisa masuk dengan Google (email harus sama dengan akun Google-nya).
-      password: z.string().refine((v) => v === "" || v.length >= 8, "Password minimal 8 karakter, atau kosongkan untuk login Google saja."),
+      password: z.string()
+        .refine((v) => v === "" || v.length >= 8, "Password minimal 8 karakter, atau kosongkan untuk login Google saja.")
+        .refine((v) => !passwordTooLong(v), PASSWORD_TOO_LONG),
     })
     .safeParse({
       name: form.get("name"), role: form.get("role"), adminPosition: String(form.get("adminPosition") ?? ""),
@@ -80,6 +83,7 @@ export async function updateUser(id: string, _prev: FormState, form: FormData): 
   }
   const newPassword = String(form.get("newPassword") ?? "");
   if (newPassword && newPassword.length < 8) return { error: "Periksa kembali isian yang ditandai.", fieldErrors: { newPassword: "Password minimal 8 karakter." } };
+  if (newPassword && passwordTooLong(newPassword)) return { error: "Periksa kembali isian yang ditandai.", fieldErrors: { newPassword: PASSWORD_TOO_LONG } };
 
   const [target] = await db.select().from(schema.users).where(eq(schema.users.id, id));
   if (!target) return { error: "Pengguna tidak ditemukan." };

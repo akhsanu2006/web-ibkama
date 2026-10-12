@@ -6,13 +6,14 @@ import { z } from "zod";
 import { db, schema } from "@/db";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { clearAttempts, isLocked, passwordChangeRules, recordFailure } from "@/lib/auth/rate-limit";
+import { PASSWORD_TOO_LONG, passwordTooLong } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 
 export type AccountState = { ok?: string; error?: string; fieldErrors?: Record<string, string> } | undefined;
 
 const schemaChange = z.object({
   currentPassword: z.string().min(1, "Isi password saat ini."),
-  newPassword: z.string().min(8, "Password baru minimal 8 karakter.").max(200, "Password terlalu panjang."),
+  newPassword: z.string().min(8, "Password baru minimal 8 karakter.").refine((v) => !passwordTooLong(v), PASSWORD_TOO_LONG),
   confirmPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmPassword, { path: ["confirmPassword"], message: "Konfirmasi tidak sama dengan password baru." })
   .refine((d) => d.newPassword !== d.currentPassword, { path: ["newPassword"], message: "Password baru harus berbeda dari password saat ini." });
