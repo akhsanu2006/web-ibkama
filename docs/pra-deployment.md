@@ -1,11 +1,11 @@
 # Checklist pra-deployment IBKAMA UMY
 
-> Disusun dari audit keamanan terakhir (commit `6f3d036` → `4e41b10` dan seterusnya). Isinya membedakan apa yang
+> Disusun dari audit keamanan terakhir (commit `6f3d036` → `2c13259`). Hanya memuat hasil yang telah dibuktikan. Isinya membedakan apa yang
 > **sudah terbukti lokal**, apa yang **butuh konfigurasi hosting**, apa yang **butuh kredensial/pengujian
 > eksternal**, dan apa yang **masih berisiko**. Jangan mencentang butir hosting sebelum benar-benar diuji di server.
 
 ## 0. Keputusan
-**SIAP SETELAH PRASYARAT.** Kode lokal terverifikasi (suite regresi 111 uji lulus + uji browser sungguhan).
+**READY AFTER PREREQUISITES (SIAP SETELAH PRASYARAT).** Bukan READY TO DEPLOY. Kode lokal terverifikasi (suite regresi 116 uji lulus + uji browser sungguhan, diulang dari kondisi aktual pada verifikasi final).
 Jangan membuka ke publik sebelum butir **B1–B6** (hosting) selesai dan **A-Super Admin (D1)** ditangani.
 
 ## A. Sudah aman dan terverifikasi secara lokal
@@ -19,6 +19,7 @@ Jangan membuka ke publik sebelum butir **B1–B6** (hosting) selesai dan **A-Sup
 | A6 | Bukti presensi, media lama, dan media saat hapus data ikut dibersihkan (tidak ada berkas yatim) | suite `content` |
 | A7 | Unggahan divalidasi tipe + ukuran + isi (signature); HTML berlabel gambar ditolak | suite `content` |
 | A8 | Presensi: NIM dinormalisasi, kuota atomik (serentak), QR kedaluwarsa/diganti, mode peserta terdaftar | Paket C + suite `body` |
+| A8b | Gate ukuran body (413 via Content-Length) berlaku di semua POST non-`/admin`, tidak dapat dilewati lewat path | suite `body` (E6) |
 | A9 | Ekspor CSV menetralkan formula (`= + - @ TAB CR`) | suite `csv` |
 | A10 | CSP **enforcement** berjalan di Chrome sungguhan: halaman publik, login, admin, presensi (kamera, tanda tangan), konversi PDF | `browser-check.mjs` |
 | A11 | Header: CSP, X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy (kamera hanya situs sendiri), tanpa X-Powered-By | suite `headers` |
@@ -55,7 +56,9 @@ tanpa cookie → `google-gagal`.
 |---|---|---|---|
 | D1 | **Password Super Admin asli ada di `.env.local`** (hanya dipakai `db:seed`). Izin berkas sudah 600, tetapi password-nya tetap tersimpan dalam teks biasa. | pengambilalihan akun Super Admin bila berkas bocor | hapus baris `SUPERADMIN_*` dari server; ganti password dari `/admin/akun`; gunakan pengelola password |
 | D2 | **Tidak ada 2FA aplikasi** untuk Super Admin | password bocor = akses penuh | lihat "2FA" di bawah |
-| D3 | Body *chunked* hanya dibatasi 60 MB tanpa proxy: 6 × 40 MB ke `/login` memuncak ±830 MB | kehabisan memori (DoS) | B2 + `proxy_request_buffering on` |
+| D3 | Body *chunked* hanya dibatasi 60 MB tanpa proxy (di semua path publik): 6 × 40 MB ke `/login` memuncak ±830 MB. **Belum diuji melalui proxy nyata.** | kehabisan memori (DoS) | B2 + `proxy_request_buffering on`, lalu uji chunked |
+| D6 | Entri pertama `X-Forwarded-For` dipercaya (tanpa pengaturan hop tepercaya) | pembatas per-IP dapat diakali bila proxy menambahkan header | B3: proxy wajib MENIMPA; BELUM DIVERIFIKASI |
+| D7 | `SUPERADMIN_PASSWORD` 12 karakter | password lemah untuk akun penuh | ganti ≥ 16 karakter unik (D1) |
 | D4 | Backup hanya di disk yang sama | kehilangan disk = kehilangan data | cron + salinan luar-server terenkripsi |
 | D5 | Tes otomatis hanya suite regresi ini (belum ada unit test) | regresi tak terdeteksi | jalankan suite sebelum tiap rilis |
 

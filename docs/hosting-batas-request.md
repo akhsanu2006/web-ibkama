@@ -61,13 +61,26 @@ Catatan penting:
   ("Invalid Server Actions request") karena Origin ≠ Host.
 - Setelah mengubah: `sudo nginx -t && sudo systemctl reload nginx`.
 
-### Yang dilindungi aplikasi sendiri (aktif tanpa proxy)
-| Perlindungan | Status |
+### Yang dilindungi aplikasi sendiri (aktif tanpa proxy) — hasil uji aktual
+Server Action dapat dikirim ke **path mana pun** yang merender halaman, jadi batas dipasang pada semua POST
+di luar `/admin` (`src/proxy.ts`). Diuji dengan body 30 MB ke build produksi (salinan DB):
+
+| Jalur | Body dengan `Content-Length` | Body *chunked* (tanpa Content-Length) |
+|---|---|---|
+| `/hadir/*` | **413** bila > 5 MB (aplikasi) | **tidak dibatasi aplikasi** — hanya 60 MB (framework); butuh proxy |
+| `/login` dan semua path publik lain (`/`, `/profil`, …) | **413** bila > 64 KB (aplikasi) | **tidak dibatasi aplikasi** — hanya 60 MB; butuh proxy |
+| `/admin/*` (terautentikasi) | sengaja tidak dibatasi aplikasi: 60 MB (video Media Situs) | 60 MB |
+| `/media/*` | POST → 405 | – |
+
+Status chunked: **BELUM DIVERIFIKASI melalui reverse proxy nyata** (tidak ada nginx/caddy di lingkungan uji).
+Terukur tanpa proxy: 6 × 40 MB *chunked* ke `/login` memuncak ±830 MB RSS. Dengan nginx `proxy_request_buffering on`
+body ditampung lalu diteruskan dengan `Content-Length`, sehingga gate aplikasi ikut efektif — ini **harus diuji** setelah
+terpasang (lihat "Cara menguji").
+
+| Perlindungan lain | Status |
 |---|---|
-| 413 untuk `/hadir/*` > 5 MB dan `/login` > 64 KB **bila Content-Length dinyatakan** | aktif di aplikasi (`src/proxy.ts`) |
 | Tiap bukti presensi ≤ 1,5 MB; data URL besar ditolak sebelum dekode | aktif di aplikasi |
-| Body *chunked* tanpa Content-Length | **hanya** dibatasi `bodySizeLimit` 60 MB — perlu proxy |
-| Batas per-perangkat/IP/program untuk kiriman presensi | aktif di aplikasi (tergantung IP asli dari proxy) |
+| Batas per-perangkat/IP/program untuk kiriman presensi | aktif di aplikasi (efektif bila IP asli diteruskan proxy) |
 
 ## Hostinger
 
