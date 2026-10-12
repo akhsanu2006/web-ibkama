@@ -1,6 +1,6 @@
 import "server-only";
-import { inArray, lt } from "drizzle-orm";
-import { headers } from "next/headers";
+import { inArray, lt, sql } from "drizzle-orm";
+import { cookies, headers } from "next/headers";
 import { db, schema } from "@/db";
 
 /**
@@ -72,4 +72,56 @@ export async function recordFailure(rules: Rule[]) {
 /** Hapus hitungan (mis. setelah login berhasil). */
 export async function clearAttempts(keys: string[]) {
   if (keys.length) await db.delete(schema.authAttempts).where(inArray(schema.authAttempts.key, keys));
+}
+
+// ------------------------------------------------------------------ presensi publik (kuota per kiriman)
+/**
+ * Kuota presensi publik — SETIAP kiriman dihitung (bukan hanya yang gagal). Jendela tetap 10 menit.
+ * Cookie perangkat hanya lapisan tambahan (mudah dihapus); batas IP & program tetap berlaku tanpa cookie.
+ */
+export function checkInRules(programId: string, deviceId: string, ip: string): Rule[] {
+  const w = 10 * MIN;
+  return [
+    { key: `hadir-device:${programId}|${deviceId}`, limit: 3, windowMs: w, lockMs: w },
+    { key: `hadir-ip-program:${programId}|${ip}`, limit: 150, windowMs: w, lockMs: w },
+    { key: `hadir-ip:${ip}`, limit: 200, windowMs: w, lockMs: w },
+    { key: `hadir-program:${programId}`, limit: 300, windowMs: w, lockMs: w },
+  ];
+}
+
+const DEVICE_COOKIE = "ibkama_perangkat";
+
+/** ID perangkat acak (cookie httpOnly 30 hari). BUKAN bukti identitas — hanya membedakan perangkat untuk kuota. */
+export async function deviceId() {
+  const jar = await cookies();
+  const cur = jar.get(DEVICE_COOKIE)?.value;
+  if (cur && /^[A-Za-z0-9_-]{22}$/.test(cur)) return cur;
+  const id = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url");
+  jar.set(DEVICE_COOKIE, id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 30 });
+  return id;
+}
+
+/**
+ * Ambil satu jatah dari SETIAP aturan secara atomik. Tiap penambahan adalah satu pernyataan SQL
+ * (UPSERT bersyarat) sehingga dua permintaan bersamaan tidak bisa sama-sama lolos melewati batas.
+ * Bila satu aturan penuh, jatah yang sudah diambil dari aturan sebelumnya dikembalikan (semua-atau-tidak),
+ * dan kiriman yang ditolak TIDAK menambah hitungan.
+ */
+export async function consumeQuota(rules: Rule[]): Promise<boolean> {
+  const now = Date.now();
+  const taken: string[] = [];
+  for (const r of rules) {
+    const res = await db.run(sql`
+      INSERT INTO auth_attempts (key, count, window_start, locked_until) VALUES (${r.key}, 1, ${now}, NULL)
+      ON CONFLICT(key) DO UPDATE SET
+        count = CASE WHEN window_start <= ${now - r.windowMs} THEN 1 ELSE count + 1 END,
+        window_start = CASE WHEN window_start <= ${now - r.windowMs} THEN ${now} ELSE window_start END
+      WHERE window_start <= ${now - r.windowMs} OR count < ${r.limit}`);
+    if (res.rowsAffected === 0) {
+      for (const k of taken) await db.run(sql`UPDATE auth_attempts SET count = count - 1 WHERE key = ${k} AND count > 0`);
+      return false;
+    }
+    taken.push(r.key);
+  }
+  return true;
 }

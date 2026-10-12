@@ -60,6 +60,8 @@ export async function saveUpload(file: File, meta: UploadMeta) {
 
 /** Ubah data URL gambar (dari kanvas tanda tangan / kamera) menjadi File; null bila kosong/tidak valid. */
 export function dataUrlToFile(dataUrl: string, name: string, maxBytes = 4 * 1024 * 1024): File | null {
+  // tolak lebih dulu berdasarkan panjang string (base64 ≈ 4/3 ukuran asli) sebelum regex & dekode
+  if (!dataUrl || dataUrl.length > Math.ceil((maxBytes * 4) / 3) + 64) return null;
   const m = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl.trim());
   if (!m) return null;
   const buf = Buffer.from(m[2], "base64");

@@ -65,7 +65,8 @@ export async function adminOverview() {
   const [[members], [programs], [pendingAttendance]] = await Promise.all([
     active ? db.select({ n: sql<number>`count(*)` }).from(schema.members).where(and(eq(schema.members.periodId, active.id), eq(schema.members.status, "active"))) : [{ n: 0 }],
     active ? db.select({ n: sql<number>`count(*)` }).from(schema.programs).where(and(eq(schema.programs.periodId, active.id), sql`${schema.programs.status} in ('planned','ongoing')`)) : [{ n: 0 }],
-    active ? db.select({ n: sql<number>`count(*)` }).from(schema.programs).where(and(eq(schema.programs.periodId, active.id), eq(schema.programs.attendanceOpen, true))) : [{ n: 0 }],
+    active ? db.select({ n: sql<number>`count(*)` }).from(schema.programs).where(and(eq(schema.programs.periodId, active.id), eq(schema.programs.attendanceOpen, true),
+      sql`(${schema.programs.attendanceClosesAt} is null or ${schema.programs.attendanceClosesAt} > ${Date.now()})`)) : [{ n: 0 }],
   ]);
   return {
     periodCount: periods.length,
@@ -112,13 +113,16 @@ export async function listProgramsForAttendance(opts: { periodId?: string | null
     .select({
       id: schema.programs.id, name: schema.programs.name, startDate: schema.programs.startDate, status: schema.programs.status,
       periodId: schema.programs.periodId, attendanceOpen: schema.programs.attendanceOpen, attendanceCode: schema.programs.attendanceCode,
+      attendanceClosesAt: schema.programs.attendanceClosesAt,
       hadir: sql<number>`(select count(*) from ${schema.programAttendances} where ${schema.programAttendances.programId} = ${schema.programs.id})`,
       terdaftar: sql<number>`(select count(*) from ${schema.programParticipants} where ${schema.programParticipants.programId} = ${schema.programs.id})`,
     })
     .from(schema.programs)
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(schema.programs.attendanceOpen), desc(schema.programs.startDate), asc(schema.programs.name));
-  return rows.map((r) => ({ ...r, hadir: Number(r.hadir), terdaftar: Number(r.terdaftar) }));
+  const now = Date.now();
+  return rows.map((r) => ({ ...r, hadir: Number(r.hadir), terdaftar: Number(r.terdaftar),
+    expired: r.attendanceOpen && r.attendanceClosesAt !== null && r.attendanceClosesAt <= now }));
 }
 
 export async function getProgramForAttendance(id: string) {
@@ -127,12 +131,14 @@ export async function getProgramForAttendance(id: string) {
       id: schema.programs.id, name: schema.programs.name, startDate: schema.programs.startDate, periodId: schema.programs.periodId,
       status: schema.programs.status, attendanceOpen: schema.programs.attendanceOpen, attendanceCode: schema.programs.attendanceCode,
       attendanceRequireSignature: schema.programs.attendanceRequireSignature, attendanceRequirePhoto: schema.programs.attendanceRequirePhoto,
+      attendanceClosesAt: schema.programs.attendanceClosesAt, attendanceRegisteredOnly: schema.programs.attendanceRegisteredOnly,
       periodName: schema.periods.name,
     })
     .from(schema.programs)
     .innerJoin(schema.periods, eq(schema.programs.periodId, schema.periods.id))
     .where(eq(schema.programs.id, id));
-  return row ?? null;
+  // tutup otomatis: kedaluwarsa dihitung di server (bukan saat render komponen)
+  return row ? { ...row, expired: row.attendanceOpen && row.attendanceClosesAt !== null && row.attendanceClosesAt <= Date.now() } : null;
 }
 
 export async function listAttendances(programId: string) {

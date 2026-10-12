@@ -17,7 +17,8 @@ export default async function AttendancePage({ params, searchParams }: Props) {
   const { berhasil } = await searchParams;
   const program = await getProgramByAttendanceCode(kode);
 
-  if (!program || !program.attendanceOpen) {
+  // tutup otomatis divalidasi di server: lewat batas waktu = dianggap ditutup (aksi checkIn juga menolak)
+  if (!program || !program.attendanceOpen || program.expired) {
     return (
       <>
         <PageHero eyebrow="Presensi" title="Presensi tidak ditemukan" description="Tautan ini tidak valid atau presensi untuk kegiatan ini sudah ditutup. Hubungi panitia bila Anda merasa ini keliru." />

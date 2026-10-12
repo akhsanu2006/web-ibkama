@@ -249,6 +249,10 @@ export const programs = sqliteTable(
     /** bukti kehadiran yang wajib diisi peserta saat presensi */
     attendanceRequireSignature: integer("attendance_require_signature", { mode: "boolean" }).notNull().default(true),
     attendanceRequirePhoto: integer("attendance_require_photo", { mode: "boolean" }).notNull().default(true),
+    /** presensi otomatis tertutup setelah waktu ini (ms epoch); null = tanpa tutup otomatis */
+    attendanceClosesAt: integer("attendance_closes_at"),
+    /** true = hanya NIM yang ada di daftar peserta yang boleh presensi */
+    attendanceRegisteredOnly: integer("attendance_registered_only", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

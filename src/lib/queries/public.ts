@@ -84,10 +84,12 @@ export async function getProgramByAttendanceCode(code: string) {
     .select({
       id: s.programs.id, name: s.programs.name, startDate: s.programs.startDate, location: s.programs.location, attendanceOpen: s.programs.attendanceOpen,
       requireSignature: s.programs.attendanceRequireSignature, requirePhoto: s.programs.attendanceRequirePhoto,
+      closesAt: s.programs.attendanceClosesAt,
     })
     .from(s.programs)
     .where(eq(s.programs.attendanceCode, code));
-  return row ?? null;
+  // tutup otomatis: lewat batas waktu = kedaluwarsa (dihitung di server, bukan di komponen)
+  return row ? { ...row, expired: row.closesAt !== null && row.closesAt <= Date.now() } : null;
 }
 
 // ---------------------------------------------------------------- kepengurusan

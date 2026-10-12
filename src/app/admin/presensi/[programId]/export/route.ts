@@ -4,9 +4,17 @@ import { formatDate } from "@/lib/period";
 import { getProgramForAttendance, listAttendances } from "@/lib/queries/admin";
 import { siteOrigin } from "@/lib/site-url";
 
+/**
+ * Sel CSV aman untuk SEMUA kolom (termasuk User-Agent yang bisa diisi bebas pengirim):
+ *  1) buang karakter kontrol kecuali tab/CR/LF;
+ *  2) NETRALISASI FORMULA (terlepas dari pengutipan): sel yang diawali = + - @ tab CR — juga setelah spasi
+ *     di depannya — diberi awalan ' agar spreadsheet (Excel/Sheets/LibreOffice) membacanya sebagai teks;
+ *  3) kutip bila mengandung " , ; tab CR LF (kutip di dalam digandakan).
+ */
 function csvCell(v: unknown) {
-  const s = String(v ?? "");
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = String(v ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  if (/^[\s]*[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",;\t\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ programId: string }> }) {

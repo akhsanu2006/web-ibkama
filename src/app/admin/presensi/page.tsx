@@ -44,7 +44,9 @@ export default async function AttendanceListPage({ searchParams }: Props) {
                 <tr key={e.id} className="border-b border-line/70 last:border-0 hover:bg-green-50/40">
                   <td className="px-5 py-3.5 font-medium text-ink">{e.name}</td>
                   <td className="px-5 py-3.5 text-muted">{formatDate(e.startDate) || "—"}</td>
-                  <td className="px-5 py-3.5"><Badge tone={e.attendanceOpen ? "green" : "gray"}>{e.attendanceOpen ? "Terbuka" : "Tertutup"}</Badge></td>
+                  <td className="px-5 py-3.5">{e.expired
+                    ? <Badge tone="brown">Kedaluwarsa</Badge>
+                    : <Badge tone={e.attendanceOpen ? "green" : "gray"}>{e.attendanceOpen ? "Terbuka" : "Tertutup"}</Badge>}</td>
                   <td className="px-5 py-3.5 text-muted">{e.hadir}{e.terdaftar > 0 ? ` / ${e.terdaftar} terdaftar` : ""}</td>
                   <td className="px-5 py-3.5 text-right"><Link href={`/admin/presensi/${e.id}`} className="text-sm font-semibold text-green-700 hover:underline">Kelola →</Link></td>
                 </tr>
