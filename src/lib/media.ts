@@ -24,6 +24,32 @@ const MAX_IMAGE = 8 * 1024 * 1024;
 export const MAX_VIDEO = 50 * 1024 * 1024;
 const MAX_DOC = 25 * 1024 * 1024;
 
+/** Galat yang pesannya aman ditampilkan ke pengguna (validasi unggahan). Galat lain tidak boleh bocor ke UI. */
+export class UploadError extends Error {}
+
+/** Cocokkan isi berkas dengan tipe yang dinyatakan klien (MIME dari klien tidak bisa dipercaya sendirian). */
+function matchesSignature(mime: string, b: Buffer): boolean {
+  const at = (off: number, sig: number[]) => sig.every((v, i) => b[off + i] === v);
+  const ascii = (off: number, t: string) => b.subarray(off, off + t.length).toString("latin1") === t;
+  switch (mime) {
+    case "image/jpeg": return at(0, [0xff, 0xd8, 0xff]);
+    case "image/png": return at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    case "image/gif": return ascii(0, "GIF87a") || ascii(0, "GIF89a");
+    case "image/webp": return ascii(0, "RIFF") && ascii(8, "WEBP");
+    case "application/pdf": return b.subarray(0, 1024).includes("%PDF-");
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      return at(0, [0x50, 0x4b, 0x03, 0x04]);
+    case "application/msword": case "application/vnd.ms-excel": case "application/vnd.ms-powerpoint":
+      return at(0, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+    case "text/plain": return !b.subarray(0, 8192).includes(0);
+    case "video/mp4": return ["ftyp", "moov", "mdat", "free", "wide", "skip"].some((t) => ascii(4, t));
+    case "video/webm": return at(0, [0x1a, 0x45, 0xdf, 0xa3]);
+    default: return false;
+  }
+}
+
 export type UploadMeta = {
   kind: "image" | "document" | "video";
   periodId?: string | null;
@@ -37,18 +63,20 @@ export type UploadMeta = {
 export async function saveUpload(file: File, meta: UploadMeta) {
   const table = meta.kind === "image" ? IMAGE_MIME : meta.kind === "video" ? VIDEO_MIME : DOC_MIME;
   const ext = table[file.type];
-  if (!ext) throw new Error(
+  if (!ext) throw new UploadError(
     meta.kind === "image" ? "Format gambar harus JPG, PNG, WebP, atau GIF."
     : meta.kind === "video" ? "Format video harus MP4 atau WebM."
     : "Format dokumen tidak didukung (PDF, Word, Excel, PowerPoint, teks).");
   const max = meta.kind === "image" ? MAX_IMAGE : meta.kind === "video" ? MAX_VIDEO : MAX_DOC;
-  if (file.size > max) throw new Error(`Ukuran file terlalu besar (maks ${max / 1024 / 1024} MB).`);
+  if (file.size > max) throw new UploadError(`Ukuran file terlalu besar (maks ${max / 1024 / 1024} MB).`);
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (!matchesSignature(file.type, bytes)) throw new UploadError("Isi berkas tidak sesuai dengan tipe yang dinyatakan. Unggah berkas asli (bukan hasil ganti nama).");
 
   const id = crypto.randomUUID();
   const rel = path.posix.join(new Date().getFullYear().toString(), `${id}${ext}`);
   const abs = path.join(STORAGE_DIR, rel);
   await mkdir(path.dirname(abs), { recursive: true });
-  await writeFile(abs, Buffer.from(await file.arrayBuffer()));
+  await writeFile(abs, bytes);
 
   await db.insert(schema.media).values({
     id, kind: meta.kind, path: rel, originalName: file.name.slice(0, 200), mime: file.type, size: file.size,

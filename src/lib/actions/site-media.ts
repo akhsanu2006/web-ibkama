@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { slotByKey } from "@/content/site-media";
 import { assertPermission } from "@/lib/auth/dal";
-import { deleteMedia, saveUpload } from "@/lib/media";
+import { deleteMedia, saveUpload, UploadError } from "@/lib/media";
 
 export type SiteMediaState = { ok?: string; error?: string } | undefined;
 
@@ -23,7 +23,7 @@ export async function replaceSiteMedia(key: string, _prev: SiteMediaState, form:
   try {
     mediaId = await saveUpload(file, { kind: slot.kind, visibility: "public", ownerType: "site_media", ownerId: key, uploadedBy: user.id });
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Gagal mengunggah berkas." };
+    return { error: e instanceof UploadError ? e.message : "Gagal mengunggah berkas." };
   }
   const [old] = await db.select().from(schema.siteMedia).where(eq(schema.siteMedia.key, key));
   await db.insert(schema.siteMedia).values({ key, mediaId, updatedBy: user.id })
