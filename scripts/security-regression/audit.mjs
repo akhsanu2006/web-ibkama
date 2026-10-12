@@ -206,6 +206,15 @@ if (group === "body") {
     const saved = Number(await one("select count(*) from program_attendances where identifier='77778888'"));
     console.log(`   presensi SAH foto+TTD ±2×1,4 MB → HTTP ${r.s} ${r.ms}ms, tersimpan=${saved}`);
     ok(saved === 1, "presensi sah dengan bukti besar (≈3,8 MB body) tetap tersimpan"); }
+  // gate tidak boleh dilewati lewat path: aksi sah dikirim ke halaman publik lain
+  for (const path of ["/profil", "/", "/kepengurusan"]) {
+    const r = await act("checkIn", [undefined, hadir(10)], { path });
+    ok(r.s === 413, `10 MB ke ${path} dengan aksi checkIn → 413 (gate berlaku di semua path publik)`, `HTTP ${r.s}`);
+  }
+  { const lf = new FormData(); lf.append("email", "a@b.c"); lf.append("password", "p".repeat(200 * 1024));
+    const r = await act("login", [undefined, lf], { path: "/profil" });
+    ok(r.s === 413, "aksi login 200 KB dikirim ke /profil → 413", `HTTP ${r.s}`); }
+  ok(await alive(), "server responsif setelah uji bypass path");
   // login dengan password raksasa
   const lf = new FormData(); lf.append("email", "tidak-ada@uji.invalid"); lf.append("password", "p".repeat(30 * 1024 * 1024));
   const lr = await act("login", [undefined, lf], { path: "/login" });
