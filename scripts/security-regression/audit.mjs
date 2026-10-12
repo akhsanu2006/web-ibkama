@@ -9,7 +9,7 @@ if (!E || !/audit/i.test(E)) { console.error("E harus menunjuk direktori kerja s
 const db = createClient({ url: `file:${E}/ibkama.db` });
 const secret = readFileSync(".env.local", "utf8").match(/^SESSION_SECRET=(.*)$/m)[1].trim().replace(/^["']|["']$/g, "");
 let pass = 0, fail = 0;
-const ok = (c, l, x = "") => { c ? pass++ : fail++; console.log(`${c ? "LULUS" : "GAGAL"}  ${l}${x ? "  — " + x : ""}`); };
+const ok = (c, l, x = "") => { if (c) pass++; else fail++; console.log(`${c ? "LULUS" : "GAGAL"}  ${l}${x ? "  — " + x : ""}`); };
 const one = async (s, a = []) => Object.values((await db.execute({ sql: s, args: a })).rows[0] ?? {})[0];
 async function ck(uid) {
   const v = Number(await one("select session_version from users where id=?", [uid]));
@@ -122,8 +122,7 @@ if (group === "origin") {
 }
 if (group === "content") {
   console.log("== Konten, unggahan, XSS, dan pembersihan berkas");
-  const { readdirSync, existsSync } = await import("node:fs");
-  const up = () => readdirSync(`${E}/uploads/2026`).length;
+  const { existsSync } = await import("node:fs");
   const mediaCount = async () => Number(await one("select count(*) from media"));
   const news = async (over = {}, file) => {
     const f = new FormData();
@@ -149,7 +148,6 @@ if (group === "content") {
   // unggahan
   const html = new File([Buffer.from("<html><script>alert(1)</script></html>")], "x.png", { type: "image/png" });
   const m00 = await mediaCount();
-  const m0 = await mediaCount(), u0 = up();
   await act("saveResource", ["berita", null, undefined, await news({ title: "Cover HTML" }, html)], { as: "uji-e-admin" });
   const cid = await one("select cover_media_id from news where title='Cover HTML'");
   console.log(`   [info] berkas HTML berlabel image/png → ${cid ? "DITERIMA (tanpa pemeriksaan isi)" : "ditolak"}`);
@@ -194,7 +192,6 @@ if (group === "body") {
   const hadir = (photoMB) => { const f = new FormData(); for (const [k, v] of Object.entries({ code, name: "Uji Besar", identifier: "55556666", studyProgram: "", cohort: "", signature: "" })) f.append(k, v); f.append("photo", mb(photoMB)); return f; };
   const base = rss(); console.log(`   rss awal ${base} MB`);
   for (const size of [1, 6, 30, 65]) {
-    const t0 = Date.now();
     const r = await act("checkIn", [undefined, hadir(size)], { path: `/hadir/${code}` });
     const msg = /terlalu besar/.test(r.t) ? "ditolak aplikasi: bukti terlalu besar" : /Periksa|Lengkapi/.test(r.t) ? "ditolak validasi" : r.t.replace(/\s+/g, " ").slice(0, 70);
     console.log(`   POST ±${size} MB ke /hadir → HTTP ${r.s} ${r.ms}ms | ${msg} | rss ${rss()} MB`);

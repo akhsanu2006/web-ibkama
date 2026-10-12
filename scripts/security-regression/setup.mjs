@@ -1,6 +1,6 @@
 import { createClient } from "@libsql/client";
 import bcrypt from "bcryptjs";
-import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 const E = process.argv[2];
 const db = createClient({ url: `file:${E}/ibkama.db` });
 const active = (await db.execute("select id from periods where status='active'")).rows[0].id;

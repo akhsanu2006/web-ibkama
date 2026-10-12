@@ -54,7 +54,6 @@ if (mode === "hadir") {
   const typeInto = async (sel, text) => { await ev(`document.querySelector('${sel}').focus()`); await send("Input.insertText", { text }); };
   await typeInto("input[name=name]", "Uji CSP Chrome"); await typeInto("input[name=identifier]", "2026 5555");
   // tanda tangan dengan mouse sungguhan
-  const box = JSON.parse(await ev(`(()=>{const r=document.querySelector('canvas').getBoundingClientRect();return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height})})()`));
   await ev(`document.querySelector('canvas').scrollIntoView({block:'center'})`); await sleep(200);
   const b2 = JSON.parse(await ev(`(()=>{const r=document.querySelector('canvas').getBoundingClientRect();return JSON.stringify({x:r.left,y:r.top,w:r.width,h:r.height})})()`));
   const mouse = (type, x, y) => send("Input.dispatchMouseEvent", { type, x, y, button: "left", buttons: 1, clickCount: 1, pointerType: "mouse" });
