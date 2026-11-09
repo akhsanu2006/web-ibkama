@@ -46,3 +46,5 @@ next-env.d.ts
 
 # artefak suite regresi keamanan
 /.audit-work/
+.claude/
+.claude/
